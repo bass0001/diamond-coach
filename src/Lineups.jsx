@@ -7,7 +7,7 @@ const C = {
 };
 const POS_COLORS = {
   P: "#7dd3fc", C: "#F5A622", "1B": "#4caf82", "2B": "#38b2ac",
-  "3B": "#9b6fe0", SS: "#e07855", LF: "#4a90d9", CF: "#d4e04a", RF: "#e04a90", EH: "#aaaaaa",
+  "3B": "#9b6fe0", SS: "#e07855", LF: "#4a90d9", CF: "#d4e04a", RF: "#e04a90", EH: "#aaaaaa", SIT: "#8aa0bd",
 };
 const FIELD = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
 const ALL_POS = [...FIELD, "EH"];
@@ -33,7 +33,7 @@ function inningStatus(lineup, inning) {
   const dups = new Set();
   lineup.order.forEach(name => {
     const pos = lineup.grid[name]?.[inning];
-    if (!pos) return;
+    if (!pos || pos === "SIT") return;
     if (seen[pos]) dups.add(pos);
     seen[pos] = true;
   });
@@ -60,10 +60,10 @@ function PositionPicker({ player, inning, lineup, onPick, onClose }) {
     const taken = takenBy[pos];
     return (
       <g onClick={() => onPick(pos)} style={{ cursor: "pointer" }}>
-        <circle cx={x} cy={y} r={25} fill={sel ? POS_COLORS[pos] : "rgba(13,24,40,0.85)"}
-          stroke={sel ? C.white : taken ? C.red : POS_COLORS[pos]} strokeWidth={sel ? 3 : 2} />
-        <text x={x} y={y + 5} textAnchor="middle" fontSize="14" fontWeight="800" fill={sel ? C.dark : POS_COLORS[pos]} style={{ fontFamily: "Oswald, sans-serif" }}>{pos}</text>
-        {taken && <text x={x} y={y + 40} textAnchor="middle" fontSize="10" fontWeight="700" fill={C.red}>{lastName(taken).slice(0, 9)}</text>}
+        <circle cx={x} cy={y} r={14} fill={sel ? POS_COLORS[pos] : "rgba(13,24,40,0.85)"}
+          stroke={sel ? C.white : taken ? C.red : POS_COLORS[pos]} strokeWidth={sel ? 2.5 : 1.5} />
+        <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fontWeight="800" fill={sel ? C.dark : POS_COLORS[pos]} style={{ fontFamily: "Oswald, sans-serif" }}>{pos}</text>
+        {taken && <text x={x} y={y + 25} textAnchor="middle" fontSize="9" fontWeight="700" fill={C.red}>{lastName(taken).slice(0, 9)}</text>}
       </g>
     );
   };
@@ -86,8 +86,11 @@ function PositionPicker({ player, inning, lineup, onPick, onClose }) {
           <button onClick={() => onPick("EH")} style={{ flex: 1, padding: "11px 0", borderRadius: 10, background: current === "EH" ? POS_COLORS.EH : "transparent", border: `2px solid ${takenBy.EH ? C.red : POS_COLORS.EH}`, color: current === "EH" ? C.dark : POS_COLORS.EH, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
             EH{takenBy.EH ? ` (${lastName(takenBy.EH)})` : ""}
           </button>
+          <button onClick={() => onPick("SIT")} style={{ flex: 1, padding: "11px 0", borderRadius: 10, background: current === "SIT" ? POS_COLORS.SIT : "transparent", border: `2px solid ${POS_COLORS.SIT}`, color: current === "SIT" ? C.dark : POS_COLORS.SIT, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+            SIT
+          </button>
           <button onClick={() => onPick("")} style={{ flex: 1, padding: "11px 0", borderRadius: 10, background: "transparent", border: `1px solid ${C.border}`, color: C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-            Bench / Clear
+            Clear
           </button>
         </div>
         <div style={{ fontSize: 10, color: C.muted, marginTop: 8, textAlign: "center" }}>A position shown in red is already taken this inning. You can still pick it, and both cells will flag red.</div>

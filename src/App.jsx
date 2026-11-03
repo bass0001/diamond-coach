@@ -928,7 +928,7 @@ function ImportWizard({ roster, onComplete, onCancel }) {
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
-function Dashboard({ teamName, season, roster, games, onAddGame, onOpenLineups, onRosterChange, onTeamChange, onPlayerEdit, onAddPlayer, onRemovePlayer }) {
+function Dashboard({ teamName, season, roster, games, onAddGame, onOpenLineups, onRosterChange, onTeamChange, onPlayerEdit, onAddPlayer, onRemovePlayer, seasons, activeId, onSwitchSeason, onNewSeason, onImportAll }) {
   const [tab, setTab]       = useState("Batting");
   const [selGame, setSelGame] = useState("all");
   const [bStat, setBStat]   = useState("h");
@@ -1186,6 +1186,7 @@ function Dashboard({ teamName, season, roster, games, onAddGame, onOpenLineups, 
             onTeamChange={onTeamChange} onPlayerEdit={onPlayerEdit}
             onAddPlayer={onAddPlayer} onRemovePlayer={onRemovePlayer}
             onCycleStatus={cycleStatus}
+            seasons={seasons} activeId={activeId} onSwitchSeason={onSwitchSeason} onNewSeason={onNewSeason} onImportAll={onImportAll}
           />
         )}
       </div>
@@ -1194,11 +1195,51 @@ function Dashboard({ teamName, season, roster, games, onAddGame, onOpenLineups, 
 }
 
 // ── ROSTER EDITOR ─────────────────────────────────────────────────────────────
-function RosterEditor({ teamName, season, roster, onTeamChange, onPlayerEdit, onAddPlayer, onRemovePlayer, onCycleStatus }) {
+function RosterEditor({ teamName, season, roster, onTeamChange, onPlayerEdit, onAddPlayer, onRemovePlayer, onCycleStatus, seasons, activeId, onSwitchSeason, onNewSeason, onImportAll }) {
   const [confirmIdx, setConfirmIdx] = useState(null);
+  const [newOpen, setNewOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [importMsg, setImportMsg] = useState("");
+  const [confirmImport, setConfirmImport] = useState(false);
+  const backupText = () => JSON.stringify({ app: "diamond-coach", version: 1, activeId, seasons });
+  const parseBackup = text => {
+    try {
+      const d = JSON.parse(text.trim());
+      if (d.app !== "diamond-coach" || !Array.isArray(d.seasons) || !d.seasons.length) return { error: "That doesn't look like Diamond Coach data." };
+      return { seasons: d.seasons, activeId: d.activeId };
+    } catch { return { error: "Couldn't read that. Make sure you pasted all of it." }; }
+  };
+  const doCopy = async () => {
+    const t = backupText();
+    try { await navigator.clipboard.writeText(t); }
+    catch { const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); } catch {} document.body.removeChild(ta); }
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+  };
+  const doDownload = () => {
+    const url = URL.createObjectURL(new Blob([backupText()], { type: "application/json" }));
+    const a = document.createElement("a"); a.href = url; a.download = `diamond-coach-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(url);
+  };
   const lbl = { fontSize: 10, color: C.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 };
   return (
     <div>
+      <SH>Season</SH>
+      <div style={{ background: C.panel, borderRadius: 12, padding: 14, marginBottom: 20, border: `1px solid ${C.border}` }}>
+        <select value={activeId} onChange={e => onSwitchSeason(e.target.value)}
+          style={{ width: "100%", background: "rgba(0,0,0,0.3)", border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, fontSize: 14, fontWeight: 700, padding: "10px 10px" }}>
+          {seasons.map(x => <option key={x.id} value={x.id}>{x.teamName || "Team"} {x.season} ({x.games.length} games)</option>)}
+        </select>
+        {!newOpen ? (
+          <button onClick={() => setNewOpen(true)} style={{ marginTop: 10, background: "none", border: "none", color: C.gold, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0 }}>+ New season</button>
+        ) : (
+          <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={() => { onNewSeason(true); setNewOpen(false); }} style={{ flex: 1, padding: "9px 6px", borderRadius: 8, background: C.gold, border: "none", color: C.navy, fontWeight: 800, fontSize: 12, cursor: "pointer" }}>Copy this roster</button>
+            <button onClick={() => { onNewSeason(false); setNewOpen(false); }} style={{ flex: 1, padding: "9px 6px", borderRadius: 8, background: "transparent", border: `1px solid ${C.gold}`, color: C.gold, fontWeight: 800, fontSize: 12, cursor: "pointer" }}>Start blank</button>
+            <button onClick={() => setNewOpen(false)} style={{ padding: "9px 10px", borderRadius: 8, background: "transparent", border: `1px solid ${C.border}`, color: C.muted, fontSize: 12, cursor: "pointer" }}>Cancel</button>
+          </div>
+        )}
+      </div>
+
       <SH>Team</SH>
       <div style={{ background: C.panel, borderRadius: 12, padding: 14, marginBottom: 20, border: `1px solid ${C.border}`, display: "flex", gap: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1258,6 +1299,31 @@ function RosterEditor({ teamName, season, roster, onTeamChange, onPlayerEdit, on
         + Add Player
       </button>
 
+      <SH>Backup &amp; Move Data</SH>
+      <div style={{ background: C.panel, borderRadius: 12, padding: 14, marginBottom: 20, border: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.6, marginBottom: 10 }}>
+          Copy everything (all seasons, rosters, games, lineups) and paste it into the app on another device. Also works as a backup.
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <button onClick={doCopy} style={{ flex: 1, padding: "10px 6px", borderRadius: 8, background: C.gold, border: "none", color: C.navy, fontWeight: 800, fontSize: 12, cursor: "pointer" }}>{copied ? "Copied" : "Copy data"}</button>
+          <button onClick={doDownload} style={{ flex: 1, padding: "10px 6px", borderRadius: 8, background: "transparent", border: `1px solid ${C.gold}`, color: C.gold, fontWeight: 800, fontSize: 12, cursor: "pointer" }}>Download file</button>
+        </div>
+        <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>Paste data from another device</div>
+        <textarea value={pasteText} onChange={e => { setPasteText(e.target.value); setImportMsg(""); }} placeholder="Paste here" rows={3}
+          style={{ width: "100%", boxSizing: "border-box", background: "rgba(0,0,0,0.3)", border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, fontSize: 12, padding: 10, outline: "none", fontFamily: "monospace" }} />
+        {!confirmImport ? (
+          <button onClick={() => { const r = parseBackup(pasteText); if (r.error) setImportMsg(r.error); else { setImportMsg(`Found ${r.seasons.length} season(s). Importing replaces everything on this device.`); setConfirmImport(true); } }} disabled={!pasteText.trim()}
+            style={{ marginTop: 8, width: "100%", padding: "10px 0", borderRadius: 8, background: "transparent", border: `1px solid ${C.border}`, color: C.white, fontWeight: 700, fontSize: 12, cursor: "pointer", opacity: pasteText.trim() ? 1 : 0.5 }}>Import</button>
+        ) : (
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button onClick={() => { const r = parseBackup(pasteText); if (!r.error) { onImportAll(r); setPasteText(""); setImportMsg("Imported."); } setConfirmImport(false); }}
+              style={{ flex: 1, padding: "10px 0", borderRadius: 8, background: "rgba(224,85,85,0.15)", border: `1px solid ${C.red}`, color: C.red, fontWeight: 800, fontSize: 12, cursor: "pointer" }}>Replace my data</button>
+            <button onClick={() => { setConfirmImport(false); setImportMsg(""); }} style={{ flex: 1, padding: "10px 0", borderRadius: 8, background: "transparent", border: `1px solid ${C.border}`, color: C.muted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Cancel</button>
+          </div>
+        )}
+        {importMsg && <div style={{ fontSize: 11, color: importMsg.startsWith("Imported") ? C.green : C.gold, marginTop: 8 }}>{importMsg}</div>}
+      </div>
+
       <div style={{ display: "flex", gap: 10, padding: "12px 0", borderTop: `1px solid ${C.border}`, flexWrap: "wrap" }}>
         {Object.entries(ST).map(([k, v]) => (
           <div key={k} style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -1275,18 +1341,37 @@ const load = (key, fallback) => {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
 };
 
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+
 export default function App() {
-  const [team, setTeam] = useState(() => load('dc_team', { teamName: "My Team", season: String(new Date().getFullYear()) }));
-  const [roster, setRoster] = useState(() => load('dc_roster', []));
-  const [games, setGames] = useState(() => load('dc_games', []));
-  const [lineups, setLineups] = useState(() => load('dc_lineups', []));
+  // Each season keeps its own team name, roster, games and lineups.
+  const [seasons, setSeasons] = useState(() => {
+    const saved = load('dc_seasons', null);
+    if (saved && saved.length) return saved;
+    const t = load('dc_team', { teamName: "My Team", season: String(new Date().getFullYear()) });
+    return [{ id: 's1', teamName: t.teamName, season: t.season, roster: load('dc_roster', []), games: load('dc_games', []), lineups: load('dc_lineups', []) }];
+  });
+  const [activeId, setActiveId] = useState(() => load('dc_active', null));
+  const active = seasons.find(x => x.id === activeId) || seasons[0];
+  const team = { teamName: active.teamName, season: active.season };
+  const roster = active.roster, games = active.games, lineups = active.lineups;
+
+  const upd = key => v => setSeasons(prev => prev.map(x => x.id === active.id ? { ...x, [key]: typeof v === 'function' ? v(x[key]) : v } : x));
+  const setRoster = upd('roster'), setGames = upd('games'), setLineups = upd('lineups');
+  const setTeamPatch = patch => setSeasons(prev => prev.map(x => x.id === active.id ? { ...x, ...patch } : x));
+
+  const newSeason = copyRoster => {
+    const id = newId();
+    const yr = parseInt(active.season) ? String(parseInt(active.season) + 1) : "";
+    const copied = copyRoster ? active.roster.map(p => ({ ...p, status: STATUS.ACTIVE })) : [];
+    setSeasons(prev => [...prev, { id, teamName: active.teamName, season: yr, roster: copied, games: [], lineups: [] }]);
+    setActiveId(id);
+  };
+
   const [showImport, setShowImport] = useState(false);
   const [showLineups, setShowLineups] = useState(false);
-  React.useEffect(() => { try { localStorage.setItem('dc_lineups', JSON.stringify(lineups)); } catch {} }, [lineups]);
-
-  React.useEffect(() => { try { localStorage.setItem('dc_team', JSON.stringify(team)); } catch {} }, [team]);
-  React.useEffect(() => { try { localStorage.setItem('dc_roster', JSON.stringify(roster)); } catch {} }, [roster]);
-  React.useEffect(() => { try { localStorage.setItem('dc_games', JSON.stringify(games)); } catch {} }, [games]);
+  React.useEffect(() => { try { localStorage.setItem('dc_seasons', JSON.stringify(seasons)); } catch {} }, [seasons]);
+  React.useEffect(() => { try { localStorage.setItem('dc_active', JSON.stringify(active.id)); } catch {} }, [active.id]);
 
   const handleImportComplete = (game, statusUpdates, newAPs = []) => {
     setGames(prev => [...prev, game]);
@@ -1330,7 +1415,12 @@ export default function App() {
       onAddGame={() => setShowImport(true)}
       onOpenLineups={() => setShowLineups(true)}
       onRosterChange={handleRosterChange}
-      onTeamChange={patch => setTeam(t => ({ ...t, ...patch }))}
+      onTeamChange={setTeamPatch}
+      seasons={seasons}
+      activeId={active.id}
+      onSwitchSeason={setActiveId}
+      onNewSeason={newSeason}
+      onImportAll={({ seasons: ss, activeId: aid }) => { setSeasons(ss); setActiveId(ss.find(x => x.id === aid) ? aid : ss[0].id); }}
       onPlayerEdit={handlePlayerEdit}
       onAddPlayer={handleAddPlayer}
       onRemovePlayer={handleRemovePlayer}
