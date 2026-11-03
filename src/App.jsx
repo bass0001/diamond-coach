@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import Lineups from "./Lineups.jsx";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LineChart, Line } from "recharts";
 
 // ── THEME ─────────────────────────────────────────────────────────────────────
@@ -927,7 +928,7 @@ function ImportWizard({ roster, onComplete, onCancel }) {
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
-function Dashboard({ teamName, season, roster, games, onAddGame, onRosterChange, onTeamChange, onPlayerEdit, onAddPlayer, onRemovePlayer }) {
+function Dashboard({ teamName, season, roster, games, onAddGame, onOpenLineups, onRosterChange, onTeamChange, onPlayerEdit, onAddPlayer, onRemovePlayer }) {
   const [tab, setTab]       = useState("Batting");
   const [selGame, setSelGame] = useState("all");
   const [bStat, setBStat]   = useState("h");
@@ -992,7 +993,10 @@ function Dashboard({ teamName, season, roster, games, onAddGame, onRosterChange,
         <div style={{ fontSize: 9, color: C.gold, letterSpacing: 3.5, textTransform: "uppercase", marginBottom: 4 }}>Season Tracker · {season}</div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "'Oswald', sans-serif", letterSpacing: 1, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{teamName}</div>
-          <button onClick={onAddGame} style={{ flexShrink: 0, padding: "7px 12px", borderRadius: 8, background: C.gold, border: "none", color: C.navy, fontWeight: 800, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>+ Add Game</button>
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+            <button onClick={onOpenLineups} style={{ padding: "7px 11px", borderRadius: 8, background: C.gold, border: "none", color: C.navy, fontWeight: 800, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>Lineups</button>
+            <button onClick={onAddGame} style={{ padding: "7px 11px", borderRadius: 8, background: "transparent", border: `1px solid ${C.gold}`, color: C.gold, fontWeight: 800, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>Import</button>
+          </div>
         </div>
         <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
           {games.length} game{games.length !== 1 ? "s" : ""} · {games.filter(g=>g.result==="W").length}W–{games.filter(g=>g.result==="L").length}L
@@ -1275,7 +1279,10 @@ export default function App() {
   const [team, setTeam] = useState(() => load('dc_team', { teamName: "My Team", season: String(new Date().getFullYear()) }));
   const [roster, setRoster] = useState(() => load('dc_roster', []));
   const [games, setGames] = useState(() => load('dc_games', []));
+  const [lineups, setLineups] = useState(() => load('dc_lineups', []));
   const [showImport, setShowImport] = useState(false);
+  const [showLineups, setShowLineups] = useState(false);
+  React.useEffect(() => { try { localStorage.setItem('dc_lineups', JSON.stringify(lineups)); } catch {} }, [lineups]);
 
   React.useEffect(() => { try { localStorage.setItem('dc_team', JSON.stringify(team)); } catch {} }, [team]);
   React.useEffect(() => { try { localStorage.setItem('dc_roster', JSON.stringify(roster)); } catch {} }, [roster]);
@@ -1308,6 +1315,10 @@ export default function App() {
   const handleAddPlayer = () => setRoster(prev => [...prev, { id: Date.now(), name: "", num: "", pos: "", status: STATUS.ACTIVE }]);
   const handleRemovePlayer = idx => setRoster(prev => prev.filter((_, i) => i !== idx));
 
+  if (showLineups) {
+    return <Lineups teamName={team.teamName} roster={roster} lineups={lineups} setLineups={setLineups} onBack={() => setShowLineups(false)} />;
+  }
+
   return showImport ? (
     <ImportWizard roster={roster} onComplete={handleImportComplete} onCancel={() => setShowImport(false)} />
   ) : (
@@ -1317,6 +1328,7 @@ export default function App() {
       roster={roster}
       games={games}
       onAddGame={() => setShowImport(true)}
+      onOpenLineups={() => setShowLineups(true)}
       onRosterChange={handleRosterChange}
       onTeamChange={patch => setTeam(t => ({ ...t, ...patch }))}
       onPlayerEdit={handlePlayerEdit}
